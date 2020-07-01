@@ -1,0 +1,15 @@
+# Python
+*.py[co]
+
+# Jupyter
+.ipynb_checkpoints
+
+# JetBrains
+.idea
+minerl-haiku-baselines.iml
+
+# macOS
+.DS_Store
+
+# Placeholders
+data

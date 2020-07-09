@@ -1,15 +1,3 @@
-"""
-Implement simple variations on behavioral cloning.
-Use something like the chainer rl approach
- - 3 layer CNN
-L.Convolution2D(n_input_channels, 32, 8, stride=4, initial_bias=bias),\
-L.Convolution2D(32, 64, 4, stride=2, initial_bias=bias),
-L.Convolution2D(64, 64, 3, stride=1, initial_bias=bias))
-
-add a separate path for the obs vector
-
-
-"""
 import dill
 import haiku as hk
 import jax

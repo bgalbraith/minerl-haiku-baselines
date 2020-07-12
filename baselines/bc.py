@@ -3,8 +3,12 @@ import haiku as hk
 import jax
 from jax.experimental import optix
 import jax.numpy as jnp
-import minerl
-import tensorflow as tf
+
+from dataset import load_data
+
+
+MINERL_ENV = 'MineRLTreechopVectorObf-v0'
+PARAMS_FILENAME = 'bc_params_treechop.pkl'
 
 
 class PovStack(hk.Module):
@@ -52,7 +56,7 @@ class PovStack(hk.Module):
 
 class VectorStack(hk.Module):
     """ VectorStack is a module for processing the obfuscated "vector" data that
-    is included in the agent's observation. This is an densely encoded form of
+    is included in the agent's observation. This is a densely encoded form of
     the discrete information regarding the state of the agent other than the
     viewport, e.g. current inventory. The input is of shape (N, 64)
     """
@@ -89,7 +93,7 @@ def main():
     @jax.jit
     def loss(params, batch):
         """ The loss criterion for our model """
-        logits = net.apply(params, batch)
+        logits = net.apply(params, None, batch)
         return mse_loss(logits, batch[2])
 
     @jax.jit
@@ -102,11 +106,11 @@ def main():
     @jax.jit
     def accuracy(params, batch):
         """ Simply report the loss for the current batch """
-        logits = net.apply(params, batch)
+        logits = net.apply(params, None, batch)
         return mse_loss(logits, batch[2])
 
-    train_dataset = load_data('MineRLTreechopVectorObf-v0',
-                              batch_size=32, epochs=10)
+    train_dataset, val_dataset = load_data(MINERL_ENV,
+                                           batch_size=32, epochs=100)
 
     rng = jax.random.PRNGKey(2020)
     batch = next(train_dataset)
@@ -115,38 +119,16 @@ def main():
 
     for i, batch in enumerate(train_dataset):
         params, opt_state = update(opt_state, params, batch)
-        if i % 10 == 0:
-            print(accuracy(params, batch))
+        if i % 1000 == 0:
+            print(accuracy(params, val_dataset))
+        
+        if i % 10000 == 0:
+            with open(PARAMS_FILENAME, 'wb') as fh:
+                dill.dump(params, fh)
 
-    with open('bc_params_treechop.pkl', 'wb') as fh:
+    with open(PARAMS_FILENAME, 'wb') as fh:
         dill.dump(params, fh)
 
-
-def load_data(environment: str, batch_size: int = 32, epochs: int = 10):
-    """ Use MineRL data loader to pull samples into memory then bundle into a
-    Tensorflow Dataset for managing batching behavior.
-    """
-    pipeline = minerl.data.make(environment)  # Assumes MINERL_DATA_ROOT is set
-
-    povs = []
-    vectors = []
-    actions = []
-
-    for i, name in enumerate(pipeline.get_trajectory_names()):
-        for sample in pipeline.load_data(name):
-            povs.append(sample[0]['pov'])
-            vectors.append(sample[0]['vector'])
-            actions.append(sample[1]['vector'])
-    del pipeline
-
-    povs = jnp.array(povs).astype(jnp.float32) / 255
-
-    ds = tf.data.Dataset.from_tensor_slices((povs, vectors, actions))
-    ds = ds.shuffle(len(povs), reshuffle_each_iteration=True)
-    ds = ds.repeat(epochs)
-    ds = ds.batch(batch_size)
-
-    yield from ds.as_numpy_iterator()
 
 
 if __name__ == '__main__':
